@@ -1,0 +1,11 @@
+type Organization @entity {
+  id: ID!
+  name: String!
+  members: [User!]!
+}
+
+type User @entity {
+  id: ID!
+  name: String!
+  organizations: [Organization!]! @derivedFrom(field: "members")
+}

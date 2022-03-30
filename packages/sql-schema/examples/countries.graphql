@@ -1,0 +1,20 @@
+type Country {
+  name: String!
+  code: String!
+  population: Int!
+  works: Boolean!
+  states: [State!]! @derivedFrom(field: "countries")
+}
+
+type State {
+  name: String!
+  code: String!
+  countries: Country!
+  cities: [City!] @derivedFrom(field: "state")
+}
+
+type City {
+  name: String!
+  code: String!
+  state: State!
+}

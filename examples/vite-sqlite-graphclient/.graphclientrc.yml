@@ -1,0 +1,5 @@
+sources:
+  - name: LocalDB
+    handler:
+      tuql:
+        db: ./many.db
