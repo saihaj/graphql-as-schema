@@ -72,14 +72,53 @@ const extractNameNode = (node: TypeNode) => {
  */
 export const generateSQLSchema = async ({ source }: { source: string }) => {
   let sqlSchema: Array<{ tableName: string; columns: Array<ColumnsAST> | undefined }> = []
+  let insertStatements: Array<string> = []
+
+  const insertStatement = (tableName: string, value: string) => `INSERT INTO "${tableName}" (name) VALUES ('${value}');`
 
   visit(parse(source), {
+    UnionTypeDefinition(node) {
+      const tableName = `${node.name.value}s`
+      const column: ColumnsAST = {
+        name: 'name',
+        type: 'TEXT',
+        constraint: 'NOT NULL',
+        relationTable: null,
+        relation: null,
+      }
+
+      // TODO: After inserting the tables made from this union type we need to link those to the value here?
+      // Maybe better is to add a relation??
+      node.types?.forEach((type) => {
+        insertStatements.push(insertStatement(tableName, type.name.value))
+      })
+      sqlSchema.push({ tableName: tableName, columns: [column] })
+    },
+    EnumTypeDefinition(node) {
+      const tableName = `${node.name.value}s`
+      const column: ColumnsAST = {
+        name: 'name',
+        type: 'TEXT',
+        constraint: 'NOT NULL',
+        relationTable: null,
+        relation: null,
+      }
+
+      // TODO: After inserting the tables made from this union type we need to link those to the value here?
+      // Maybe better is to add a relation??
+      node.values?.forEach((value) => {
+        insertStatements.push(insertStatement(tableName, value.name.value))
+      })
+
+      sqlSchema.push({ tableName: tableName, columns: [column] })
+    },
     ScalarTypeDefinition(node) {
       // Store all scalars as TEXT
       GRAPHQL_SCALAR_TO_SQLITE[node.name.value] = 'TEXT'
     },
     ObjectTypeDefinition(node) {
-      const tableName = node.name.value.endsWith('s') ? node.name.value : `${node.name.value}s`
+      // TODO: do we normalize these names?
+      const tableName = `${node.name.value}s`
 
       const columns = node.fields
         // `id` field is added by default
@@ -147,5 +186,5 @@ ${fks?.join(',\n')}
     return str
   })
 
-  return schema.join('\n')
+  return ['BEGIN TRANSACTION;', ...schema, ...insertStatements, 'COMMIT;'].join('\n')
 }
