@@ -117,6 +117,9 @@ export const generateSQLSchema = async ({ source }: { source: string }) => {
       GRAPHQL_SCALAR_TO_SQLITE[node.name.value] = 'TEXT'
     },
     ObjectTypeDefinition(node) {
+      if (['Query', 'Mutation', 'Subscription'].includes(node.name.value)) {
+        return
+      }
       // TODO: do we normalize these names?
       const tableName = `${node.name.value}s`
 
