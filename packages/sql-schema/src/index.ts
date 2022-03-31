@@ -159,7 +159,7 @@ export const generateSQLSchema = async ({ source }: { source: string }) => {
           const relationTable = !isMapped ? `${namedType}s` : null
 
           return {
-            name: name.value,
+            name: `"${name.value}"`,
             type: isMapped ? namedType : 'INTEGER', // relations are always text
             constraint: type.kind === Kind.NON_NULL_TYPE ? 'NOT NULL' : 'NULL',
             relationTable,
