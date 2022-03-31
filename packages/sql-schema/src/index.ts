@@ -1,17 +1,18 @@
 import { Kind, parse, TypeNode, visit } from 'graphql'
 export const DERIVED_FROM_DIRECTIVE = 'directive @derivedFrom(field: String!) on FIELD_DEFINITION'
 
+const GRAPHQL_SCALAR_TO_SQLITE = {
+  String: 'TEXT',
+  ID: 'TEXT',
+  Int: 'INTEGER',
+  Boolean: 'INTEGER',
+}
+
 const getDataType = (type: string) => {
-  // Mapping GraphQL String to SQLite "TEXT"
-  if (type === 'String') {
-    return 'TEXT'
+  if (GRAPHQL_SCALAR_TO_SQLITE.hasOwnProperty(type)) {
+    return GRAPHQL_SCALAR_TO_SQLITE[type]
   }
-  // Mapping GraphQL Boolean to SQLite "INTEGER" since it doesn't have built in boolean type
-  // Mapping GraphQL Int to SQLite "INTEGER"
-  if (type === 'Int' || type === 'Boolean') {
-    return 'INTEGER'
-  }
-  // Return non-primitive types as is and they will be mapped to SQLite "TEXT" for relations
+
   return type
 }
 
@@ -73,6 +74,10 @@ export const generateSQLSchema = async ({ source }: { source: string }) => {
   let sqlSchema: Array<{ tableName: string; columns: Array<ColumnsAST> | undefined }> = []
 
   visit(parse(source), {
+    ScalarTypeDefinition(node) {
+      // Store all scalars as TEXT
+      GRAPHQL_SCALAR_TO_SQLITE[node.name.value] = 'TEXT'
+    },
     ObjectTypeDefinition(node) {
       const tableName = node.name.value.endsWith('s') ? node.name.value : `${node.name.value}s`
 
@@ -125,17 +130,19 @@ export const generateSQLSchema = async ({ source }: { source: string }) => {
   })
 
   const schema = sqlSchema.map(({ tableName, columns }) => {
-    const isLast = (index: number) => columns && index === columns.length - 1
-
     const cols = columns?.map(({ name, type, constraint, relationTable }, i) => {
       const column = `${name} ${type} ${constraint}`
-      const foreignKey = relationTable ? `,\nFOREIGN KEY (${name}) REFERENCES "${relationTable}"(id)` : ''
-      return [column, foreignKey].join(isLast(i) ? '' : ',')
+      const foreignKey = relationTable ? `FOREIGN KEY (${name}) REFERENCES "${relationTable}"(id)` : ''
+      return [column, foreignKey]
     })
+
+    const fields = cols?.map(([col]) => col).filter(Boolean)
+    const fks = cols?.map(([, fk]) => fk).filter(Boolean)
 
     const str = `${createTable(`"${tableName}"`)} (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
-${cols?.join('\n')}
+${fields?.join(',\n')}${fks && fks?.length > 0 ? ',' : ''}
+${fks?.join(',\n')}
 );`
     return str
   })
